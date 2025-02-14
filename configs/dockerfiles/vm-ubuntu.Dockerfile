@@ -6,7 +6,12 @@ RUN apt-get update && apt-get install openssh-server zip sudo tzdata  -y
 ENV TZ="Europe/Ljubljana"
 
 WORKDIR /usr/local/bin
+ARG HTTPS_PROXY
+ARG NO_PROXY
 
+ENV https_proxy $HTTPS_PROXY
+ENV no_proxy $NO_PROXY
+RUN echo $https_proxy $no_proxy proxies
 RUN wget https://releases.hashicorp.com/vault-ssh-helper/0.2.1/vault-ssh-helper_0.2.1_linux_amd64.zip \
     -O tmp.zip && unzip tmp.zip && rm tmp.zip
 
@@ -18,12 +23,9 @@ RUN mkdir /var/run/sshd
 
 RUN echo 'root:root' |chpasswd
 
-RUN mkdir /root/.ssh
-
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-RUN useradd -ms /bin/bash ubuntu
 RUN usermod -aG sudo ubuntu
 
 EXPOSE 22

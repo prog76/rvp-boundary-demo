@@ -17,19 +17,19 @@ worker {
   // public address 127 because we're portforwarding the connection from docker to host machine.
   // So for the client running in host machine, the connection ip is 127
   // If you're using this in a remote server, then the ip should be changed to machine public address, so that your local machine can communicate to this worker.
-  public_addr = "127.0.0.1"
+  public_addr = "boundary.localhost"
 }
 
 listener "tcp" {
   address = "boundary"
   purpose = "api"
-  tls_disable = true 
+  tls_disable = true
 }
 
 listener "tcp" {
   address = "boundary"
   purpose = "cluster"
-  tls_disable = true 
+  tls_disable = true
 }
 
 listener "tcp" {
@@ -38,7 +38,7 @@ listener "tcp" {
 	tls_disable = true
 }
 
-// Yoy can generate the keys by 
+// Yoy can generate the keys by
 // `python3 kyegen.py`
 // Ref: https://www.boundaryproject.io/docs/configuration/kms/aead
 kms "aead" {

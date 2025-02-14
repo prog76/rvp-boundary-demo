@@ -1,4 +1,40 @@
-# This represents a host catalog for virtual machiens in VMWare 
+resource "boundary_host_catalog_static" "databases" {
+  name        = "databases"
+  description = "Database targets"
+  # type        = "static"
+  scope_id    = boundary_scope.project_rk.id
+}
+
+resource "boundary_host_static" "postgres" {
+  type            = "static"
+  name            = "postgres"
+  description     = "Postgres host 1"
+  address         = "db.localhost"
+  host_catalog_id = boundary_host_catalog_static.databases.id
+}
+
+resource "boundary_host_set_static" "postgres" {
+  type            = "static"
+  name            = "postgres"
+  description     = "Host set for postgres containers"
+  host_catalog_id = boundary_host_catalog_static.databases.id
+  host_ids        = [boundary_host_static.postgres.id]
+}
+
+resource "boundary_target" "postgres" {
+  type                     = "tcp"
+  name                     = "postgres"
+  description              = "Postgres SQL server"
+  scope_id                 = boundary_scope.project_rk.id
+  session_connection_limit = -1
+  session_max_seconds      = 2
+  default_port             = 5432
+  host_source_ids = [
+    boundary_host_set_static.postgres.id
+  ]
+}
+
+# This represents a host catalog for virtual machiens in VMWare
 resource "boundary_host_catalog_static" "vmware" {
   name        = "VMWare"
   description = "VMWare virtual machines"
@@ -99,7 +135,6 @@ resource "boundary_target" "ssh_vm04" {
 
   host_source_ids = [boundary_host_set_static.vmware_pcs_host_set["vm-04"].id]
 }
-
 
 output "vm_01_connect" {
   value = "boundary connect ssh -target-id ${boundary_target.ssh_vm01.id}"

@@ -62,7 +62,7 @@ resource "vault_kv_secret_v2" "vm_02_username_private_key" {
 
   data_json = jsonencode({
     username    = "vm02user"
-    private_key = file("${path.module}/../configs/openssh/vm02/key")
+    private_key = file("/configs/openssh/vm02/key")
   })
 }
 

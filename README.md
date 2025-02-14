@@ -7,9 +7,9 @@ This is a repository I used for testing Boundary and Vault. It was created as a 
 ## Project overview
 
 The idea was to create a setup where users can connect to "VM"s using Boundary. The setup is completely dockerized and uses Terraform to configure Boundary/Vault/Keycloak. The setup is loosely based on a network configuration we used in one of the faculty courses (RK "Računalniške Komunikacije").
-- Boundary: handles authentication and authorization, and provides a CLI and UI for connecting to resources. Running on `localhost:9200`
-- Vault: handles secrets and provides a mechanism for generating one-time passwords (OTP) for SSH connections. Running on `localhost:8200`. Since this is a proof of concept, Vault is running in unsealed development mode. The token is `root`.
-- Keycloak: Acts as an identity provider for Boundary. It provides a way to authenticate users using GitHub and GitLab accounts. It also provides a way to manage users and groups. Running on `localhost:8080`. The credentials are `admin:admin`.
+- Boundary: handles authentication and authorization, and provides a CLI and UI for connecting to resources. Running on `baundary.localhost:9200`
+- Vault: handles secrets and provides a mechanism for generating one-time passwords (OTP) for SSH connections. Running on `vault.localhost:8200`. Since this is a proof of concept, Vault is running in unsealed development mode. The token is `root`.
+- Keycloak: Acts as an identity provider for Boundary. It provides a way to authenticate users using GitHub and GitLab accounts. It also provides a way to manage users and groups. Running on `keycloak.localhost:8080`. The credentials are `admin:admin`.
 - PostgreSQL: Database for Keycloak and Boundary. Running on `localhost:5432`. The credentials are `root:changeme`. 2 Additional databases are created for Boundary and Keycloak using the `configs/postgres/docker_postgres_init.sql` script.
 - 4 "Virtual Machines" on a "private" network. The idea is they can only be accessed over Boundary:
   - VM01: Uses a static username&password to authenticate. Credentials are stored inside Vault.
@@ -19,47 +19,44 @@ The idea was to create a setup where users can connect to "VM"s using Boundary. 
 ## Prerequisites
 
 Required software:
-- docker 
-- terraform
+- docker-compose
 - free ports 9200, 9201, 9202, 8200, 8080, 5432
 
 This stack pulls user information from GitHub and GitLAb. As such, you need to register a Github / GitLab oAuth app to connect it with Keycloak.
 
-Create a `terraform/.env.local` file with the following content:
+Create a `.oauth` file with the following content:
 
 ```sh
 # GitHub OAuth2 Client ID and Secret
-GH_CLIENT_ID=...
-GH_CLIENT_SECRET=...
+TF_VAR_oauth_client_id=...
+TF_VAR_oauth_client_secret=...
+```
 
-# GitLab OAuth2 Client ID and Secret
-GL_CLIENT_ID=...
-GL_CLIENT_SECRET=...
+Create a `.proxy` file with the following content:
+
+```sh
+https_proxy=...
+no_proxy=0,1,2,3,4,5,6,7,8,9,
 ```
 
 ## How to run
 
-To start the stack 
+To start the stack
 
 ```sh
-docker-compose up
+docker-compose up --env-file .proxy
 ```
 
-Please wait a little, until all migrations are applied and Keycloak starts. Then apply the terraform configuration:
+Please wait a little, until all migrations are applied and Keycloak starts and terraform applies.
 
-```sh
-cd terraform
-terraform init  # First time only
-terraform apply # Might need to wait a few seconds for the stack to completely start
-```
-
-## Getting started 
+## Getting started
 
 
-### UI  
+### UI
 
 Login to the UI:
-  - Open browser to [localhost:9200](http://localhost:9200)
+  - Configure your browser to use a proxy at localhost:4080
+  - Open browser to [boundary.localhost:9200](http://boundary.localhost:9200)
   - Change scope to `RVP`
   - Login with username `tester01` and password `supersecure`. This is a test admin user.
     - OR: you can login with your GitHub or GitLab account. You will have read-only access to the `RVP` scope.
@@ -69,7 +66,7 @@ Login to the UI:
 
 ### CLI
 
-After running `terrafom apply` you should receive output similar to this:
+with the last lines of `docker-compose` you should receive output similar to this:
 
 ```sh
 keycloak_login = "export BOUNDARY_TOKEN=$(boundary authenticate oidc -auth-method-id=amoidc_aEffgDrBuT -keyring-type=none -format=json | jq -r '.item.attributes.token')"
@@ -80,8 +77,21 @@ vm_03_connect = "boundary connect ssh -target-id ttcp_aQXVmrSsN6"
 vm_04_connect = "boundary connect ssh -target-id ttcp_OUhkAonyHn"
 ```
 
+Open test terminal with
+
+```sh
+./open-terminal.sh
+```
+Terminal will be rebuilded on exit/reopen so it's easy to change things and play with it
+
+Terraform code also can be changed and reapplied with just
+```sh
+docker-compose up --no-deps terraform
+```
+
+
 - Using `keycloak_login` you can login with GitHub/ GitLab. A browser window will open and you will be redirected to Keycloak. After logging in, you will receive a token that you can use to perform actions over CLI.
-- Using `sample_admin_login` you can login with the test admin user. 
+- Using `sample_admin_login` you can login with the test admin user.
 - All the `vm_XX_connect` commands will connect you to the VMs. You can use them to test the setup. Please note, that you need to have valid permissions to connect to the VMs. (If you are using Keycloak login, please edit the `terraform/permissions.tf` as noted in the UI section)
 ## Verdict
 
@@ -96,17 +106,17 @@ Please keep in mind, this was my first time using Boundary and I'm not an expert
 
 ### Cons
 
-- Too complicated setup for a use case that is not that complex 
+- Too complicated setup for a use case that is not that complex
 - Boundary is relatively new: a few features are missing and the community is small (not a lot of examples/ blog posts/ questions on StackOverflow)
 - My main gripe was with how the open-source (OSS) version of the Boundary handles secrets. The HCP (Cloud) version provides a mechanism called Credential Injection. This means that no Credentials are actually forwarded to the user trying to connect to a resource, rather, they are injected in the Boundary Worker. Meanwhile, the OSS version provides only Credential Brokering, which means that the credentials are forwarded to the user. In my opinion, this adds this an unnecessary security risk. We can fix it by using things like Vault SSH OTP, but the setup is not trivial and requires quite a lot of configuration. A GitHub issue on this topic can be found here: https://github.com/hashicorp/boundary/issues/2119
-  
+
 ## All the issues I ran into
 
 - Complicated setup of Vault OTP with vault-ssh-helper. I was running into a PAM error in the form of `error: PAM: User account has expired for <USER> from <IP_DESTINATION>`. After looking at this thread https://groups.google.com/g/vault-tool/c/TVf8Ktg2RZ0 and trying everything that was listed there, the issue still persisted. I'm not really familiar with PAM and tracking logs inside of the Docker container was hard since it doesn't include system logs. What finally seemed to work was the command `usermod -aG sudo ubuntu` in the Dockerfile. Not sure why adding the user to the sudo group fixed the issue, but it did.
 - Couldn't list the created Boundary organization scope. Didn't realize, that putting Boundary into production tightens the permissions of the unauthorized user. The fix was adding the following to the Terraform configuration:
 
 ```hcl
-# u_anon is a special user that isn't authenticated 
+# u_anon is a special user that isn't authenticated
 # we must allow him, to view the auth methods, scopes and his own account
 # (RVP scope)
 resource "boundary_role" "org_anon_listing" {
@@ -119,9 +129,7 @@ resource "boundary_role" "org_anon_listing" {
   principal_ids = ["u_anon"]
 }
 ```
-
-- When creating the auth method OIDC for Boundary (connecting it to Keycloak) the issuer was different than the address of the Keycloak server. Since Keycloak is running on `localhost:8080` but Boundary communicates with it over dns `keycloak:8080` the issuer was different. This is only a problem since we are running the stack locally. In production, the issuer would be the same as the address of the Keycloak server. The fix was to add `socat TCP-LISTEN:8080,fork TCP:keycloak:8080 &` to the entrypoint of the Boundary container. This forwards all traffic from port 8080 to the Keycloak container.
-- Related to Keycloak Terraform provider: Had to manually configure `keycloak_oidc_identity_provider` for GitHub. Couldn't get it working over Terraform, only over UI. What finally fixed it was: 
+- Related to Keycloak Terraform provider: Had to manually configure `keycloak_oidc_identity_provider` for GitHub. Couldn't get it working over Terraform, only over UI. What finally fixed it was:
 ```hcl
 resource "keycloak_oidc_identity_provider" "github_idp" {
   realm = keycloak_realm.realm.id

@@ -53,8 +53,8 @@ resource "keycloak_oidc_identity_provider" "github_idp" {
 
   enabled = true
 
-  client_id     = local.envs["GH_CLIENT_ID"]
-  client_secret = local.envs["GH_CLIENT_SECRET"]
+  client_id     = var.oauth_client_id
+  client_secret = var.oauth_client_secret
 
   authorization_url = "https://github.com/login/oauth/authorize"
   token_url         = "https://github.com/login/oauth/access_token"
@@ -74,8 +74,8 @@ resource "keycloak_oidc_identity_provider" "gitlab_idp" {
 
   enabled = true
 
-  client_id     = local.envs["GL_CLIENT_ID"]
-  client_secret = local.envs["GL_CLIENT_SECRET"]
+  client_id     = var.oauth_client_id
+  client_secret = var.oauth_client_secret
 
   authorization_url = "https://gitlab.com/oauth/authorize"
   token_url         = "https://gitlab.com/oauth/token"
